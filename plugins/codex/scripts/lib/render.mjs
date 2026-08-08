@@ -81,8 +81,16 @@ function isStructuredReviewStoredResult(storedJob) {
   );
 }
 
+function formatStalledSuffix(job) {
+  if (!job.stalledForMs) {
+    return "";
+  }
+  const minutes = Math.round(job.stalledForMs / 60000);
+  return ` (STALLED - no log activity for ${minutes}m)`;
+}
+
 function formatJobLine(job) {
-  const parts = [job.id, `${job.status || "unknown"}`];
+  const parts = [job.id, `${job.status || "unknown"}${formatStalledSuffix(job)}`];
   if (job.kindLabel) {
     parts.push(job.kindLabel);
   }
@@ -115,8 +123,9 @@ function appendActiveJobsTable(lines, jobs) {
     if (job.status === "queued" || job.status === "running") {
       actions.push(`/codex:cancel ${job.id}`);
     }
+    const statusCell = `${job.status}${formatStalledSuffix(job)}`;
     lines.push(
-      `| ${escapeMarkdownCell(job.id)} | ${escapeMarkdownCell(job.kindLabel)} | ${escapeMarkdownCell(job.status)} | ${escapeMarkdownCell(job.phase ?? "")} | ${escapeMarkdownCell(job.elapsed ?? "")} | ${escapeMarkdownCell(job.threadId ?? "")} | ${escapeMarkdownCell(job.summary ?? "")} | ${actions.map((action) => `\`${action}\``).join("<br>")} |`
+      `| ${escapeMarkdownCell(job.id)} | ${escapeMarkdownCell(job.kindLabel)} | ${escapeMarkdownCell(statusCell)} | ${escapeMarkdownCell(job.phase ?? "")} | ${escapeMarkdownCell(job.elapsed ?? "")} | ${escapeMarkdownCell(job.threadId ?? "")} | ${escapeMarkdownCell(job.summary ?? "")} | ${actions.map((action) => `\`${action}\``).join("<br>")} |`
     );
   }
 }
@@ -147,6 +156,11 @@ function pushJobDetails(lines, job, options = {}) {
   }
   if ((job.status === "queued" || job.status === "running") && options.showCancelHint) {
     lines.push(`  Cancel: /codex:cancel ${job.id}`);
+  }
+  if (job.stalledForMs) {
+    lines.push(
+      `  ⚠ No log activity for ${Math.round(job.stalledForMs / 60000)}m -- the underlying process may have died. Consider /codex:cancel ${job.id} and retrying fresh (not --resume-last, which reconnects to the same session).`
+    );
   }
   if (job.status !== "queued" && job.status !== "running" && options.showResultHint) {
     lines.push(`  Result: /codex:result ${job.id}`);

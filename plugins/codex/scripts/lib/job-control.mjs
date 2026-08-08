@@ -8,6 +8,34 @@ import { resolveWorkspaceRoot } from "./workspace.mjs";
 export const DEFAULT_MAX_STATUS_JOBS = 8;
 export const DEFAULT_MAX_PROGRESS_LINES = 4;
 
+// A "running" job whose log file hasn't grown in this long is treated as
+// stalled rather than actively progressing. status previously replayed only
+// the last-written job record with no liveness check at all, so a dead
+// broker (transport closed, nothing left to ever emit a completion
+// notification) and a slow-but-alive job were indistinguishable -- a real
+// incident sat at "running" for 34+ minutes with zero new log lines before
+// anyone noticed the underlying process had already died. 10 minutes is
+// long enough that a real multi-file investigation with a slow build/test/rg
+// command won't false-positive, short enough that a genuine stall doesn't
+// silently burn half an hour before it's caught.
+const STALL_THRESHOLD_MS = 10 * 60 * 1000;
+
+function computeStalledForMs(job) {
+  if (job.status !== "running" || !job.logFile) {
+    return null;
+  }
+  let mtimeMs;
+  try {
+    mtimeMs = fs.statSync(job.logFile).mtimeMs;
+  } catch {
+    // Log file missing entirely for a "running" job is its own bad sign,
+    // but not what this check is for -- leave it to other status output.
+    return null;
+  }
+  const staleForMs = Date.now() - mtimeMs;
+  return staleForMs >= STALL_THRESHOLD_MS ? staleForMs : null;
+}
+
 export function sortJobsNewestFirst(jobs) {
   return [...jobs].sort((left, right) => String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")));
 }
@@ -171,7 +199,8 @@ export function enrichJob(job, options = {}) {
     duration:
       job.status === "completed" || job.status === "failed" || job.status === "cancelled"
         ? formatElapsedDuration(job.startedAt ?? job.createdAt, job.completedAt ?? job.updatedAt)
-        : null
+        : null,
+    stalledForMs: computeStalledForMs(job)
   };
 
   return {

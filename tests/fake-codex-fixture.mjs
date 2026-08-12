@@ -276,6 +276,19 @@ bootState.lastAppServerArgs = args;
 saveState(bootState);
 
 const rl = readline.createInterface({ input: process.stdin });
+if (BEHAVIOR === "initialize-rejects") {
+  setTimeout(() => {
+    const state = loadState();
+    state.initializeFallbackExit = true;
+    saveState(state);
+    process.exit(0);
+  }, 1500).unref();
+  rl.on("close", () => {
+    const state = loadState();
+    state.initializeProcessClosed = true;
+    saveState(state);
+  });
+}
 rl.on("line", (line) => {
   if (!line.trim()) {
     return;
@@ -287,6 +300,10 @@ rl.on("line", (line) => {
   try {
     switch (message.method) {
       case "initialize":
+        if (BEHAVIOR === "initialize-rejects") {
+          send({ id: message.id, error: { code: -32000, message: "initialize rejected by fixture" } });
+          break;
+        }
         state.capabilities = message.params.capabilities || null;
         saveState(state);
         send({ id: message.id, result: { userAgent: "fake-codex-app-server" } });
@@ -347,6 +364,7 @@ rl.on("line", (line) => {
         }
         const thread = ensureThread(state, message.params.threadId);
         thread.updatedAt = now();
+        state.lastThreadResume = message.params;
         saveState(state);
         send({ id: message.id, result: { thread: buildThread(thread), model: message.params.model || "gpt-5.4", modelProvider: "openai", serviceTier: null, cwd: thread.cwd, approvalPolicy: "never", sandbox: { type: "readOnly", access: { type: "fullAccess" }, networkAccess: false }, reasoningEffort: null } });
         break;

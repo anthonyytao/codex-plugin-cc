@@ -50,11 +50,16 @@ const DEFAULT_CONTINUE_PROMPT =
   "Continue from the current thread state. Pick the next highest-value step and follow through until the task is resolved.";
 const EXTERNAL_AGENT_IMPORT_COMPLETED = "externalAgentConfig/import/completed";
 const EXTERNAL_AGENT_IMPORT_TIMEOUT_MS = 2 * 60 * 1000;
-// These are stable Codex features, on by default, that make Codex auto-load
-// ~/.codex/memories/MEMORY.md and search/open matching ~/.codex/skills/*/SKILL.md at turn start,
-// independent of the prompt. A shared broker's flags are fixed at broker-start time, so honoring
-// this requires a dedicated app-server process for the call (see `isolated` on runAppServerTurn).
-const ISOLATED_APP_SERVER_ARGS = ["--disable", "memories", "--disable", "skill_search"];
+// A shared broker's config is fixed at broker-start time, so isolated calls need a dedicated
+// app-server with every automatic context source disabled before the thread starts.
+const ISOLATED_APP_SERVER_ARGS = [
+  "--disable",
+  "memories",
+  "-c",
+  "skills.include_instructions=false",
+  "--disable",
+  "skill_search"
+];
 
 function cleanCodexStderr(stderr) {
   return stderr
@@ -615,10 +620,10 @@ async function captureTurn(client, threadId, startRequest, options = {}) {
   }
 }
 
-async function withAppServer(cwd, fn) {
+async function withAppServer(cwd, fn, options = {}) {
   let client = null;
   try {
-    client = await CodexAppServerClient.connect(cwd);
+    client = await CodexAppServerClient.connect(cwd, { workspaceRoot: options.workspaceRoot });
     const result = await fn(client);
     await client.close();
     return result;
@@ -1105,7 +1110,7 @@ export async function runAppServerTurn(cwd, options = {}) {
 
   const withServer = options.isolated
     ? (fn) => withDirectAppServer(cwd, fn, { extraArgs: ISOLATED_APP_SERVER_ARGS })
-    : (fn) => withAppServer(cwd, fn);
+    : (fn) => withAppServer(cwd, fn, { workspaceRoot: options.workspaceRoot });
 
   return withServer(async (client) => {
     let threadId;

@@ -763,28 +763,39 @@ test("task --fresh is treated as routing control and does not leak into the prom
   assert.equal(fakeState.lastTurnStart.prompt, "diagnose the flaky test");
 });
 
-test("task honors --cwd instead of the invoking process's own working directory", () => {
+test("task keeps a nested --cwd for thread start and resume", () => {
   const repo = makeTempDir();
+  const taskCwd = path.join(repo, "packages", "foo");
   const invocationDir = makeTempDir();
   const binDir = makeTempDir();
   const statePath = path.join(binDir, "fake-codex-state.json");
   installFakeCodex(binDir);
   initGitRepo(repo);
+  fs.mkdirSync(taskCwd, { recursive: true });
   fs.writeFileSync(path.join(repo, "README.md"), "hello\n");
   run("git", ["add", "README.md"], { cwd: repo });
   run("git", ["commit", "-m", "init"], { cwd: repo });
 
-  const result = run("node", [SCRIPT, "task", "--cwd", repo, "diagnose the failing test"], {
+  const result = run("node", [SCRIPT, "task", "--cwd", taskCwd, "diagnose the failing test"], {
     cwd: invocationDir,
     env: buildEnv(binDir)
   });
 
   assert.equal(result.status, 0, result.stderr);
-  const fakeState = JSON.parse(fs.readFileSync(statePath, "utf8"));
-  assert.equal(fakeState.threads[0].cwd, fs.realpathSync(repo));
+  let fakeState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(fakeState.threads[0].cwd, taskCwd);
+
+  const resumed = run("node", [SCRIPT, "task", "--resume", "--cwd", taskCwd, "continue diagnosis"], {
+    cwd: invocationDir,
+    env: buildEnv(binDir)
+  });
+
+  assert.equal(resumed.status, 0, resumed.stderr);
+  fakeState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(fakeState.lastThreadResume.cwd, taskCwd);
 });
 
-test("task --isolated spawns a dedicated app-server with memories and skill_search disabled", () => {
+test("task --isolated spawns a dedicated app-server with every automatic context source disabled", () => {
   const repo = makeTempDir();
   const binDir = makeTempDir();
   const statePath = path.join(binDir, "fake-codex-state.json");
@@ -801,7 +812,80 @@ test("task --isolated spawns a dedicated app-server with memories and skill_sear
 
   assert.equal(result.status, 0, result.stderr);
   const fakeState = JSON.parse(fs.readFileSync(statePath, "utf8"));
-  assert.deepEqual(fakeState.lastAppServerArgs, ["app-server", "--disable", "memories", "--disable", "skill_search"]);
+  assert.deepEqual(fakeState.lastAppServerArgs, [
+    "app-server",
+    "--disable",
+    "memories",
+    "-c",
+    "skills.include_instructions=false",
+    "--disable",
+    "skill_search"
+  ]);
+});
+
+test("installed Codex isolation controls remove the skills catalog from model-visible context", (t) => {
+  const version = run("codex", ["--version"], { cwd: ROOT });
+  if (version.status !== 0) {
+    t.skip("Codex is not installed.");
+    return;
+  }
+
+  const codexHome = makeTempDir("codex-plugin-context-");
+  const env = { ...process.env, CODEX_HOME: codexHome, NO_COLOR: "1" };
+  delete env.CLAUDE_PLUGIN_DATA;
+  delete env.FORCE_COLOR;
+
+  const baseline = run("codex", ["debug", "prompt-input", "ISOLATION_PROBE"], {
+    cwd: ROOT,
+    env
+  });
+  if (baseline.status !== 0 && /unrecognized subcommand|unexpected argument/i.test(baseline.stderr)) {
+    t.skip("Installed Codex does not expose debug prompt-input.");
+    return;
+  }
+
+  assert.equal(baseline.status, 0, baseline.stderr);
+  assert.match(baseline.stdout, /<skills_instructions>/);
+  assert.match(baseline.stdout, /### Available skills/);
+
+  const isolated = run(
+    "codex",
+    [
+      "debug",
+      "prompt-input",
+      "--disable",
+      "memories",
+      "-c",
+      "skills.include_instructions=false",
+      "--disable",
+      "skill_search",
+      "ISOLATION_PROBE"
+    ],
+    { cwd: ROOT, env }
+  );
+
+  assert.equal(isolated.status, 0, isolated.stderr);
+  assert.match(isolated.stdout, /ISOLATION_PROBE/);
+  assert.doesNotMatch(isolated.stdout, /<skills_instructions>|### Available skills|SKILL\.md/);
+});
+
+test("a dedicated app-server is closed when initialize is rejected", () => {
+  const repo = makeTempDir();
+  const binDir = makeTempDir();
+  const statePath = path.join(binDir, "fake-codex-state.json");
+  installFakeCodex(binDir, "initialize-rejects");
+  initGitRepo(repo);
+
+  const result = run("node", [SCRIPT, "task", "--isolated", "diagnose the failing test"], {
+    cwd: repo,
+    env: buildEnv(binDir)
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /initialize rejected by fixture/);
+  const fakeState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(fakeState.initializeProcessClosed, true);
+  assert.notEqual(fakeState.initializeFallbackExit, true);
 });
 
 test("task without --isolated leaves Codex's default feature flags untouched", () => {

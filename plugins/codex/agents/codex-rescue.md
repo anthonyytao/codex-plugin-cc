@@ -24,8 +24,9 @@ Forwarding rules:
 - If the user did not explicitly choose `--background` or `--wait` and the task looks complicated, open-ended, multi-step, or likely to keep Codex running for a long time, prefer background execution.
 - If the user explicitly chose `--wait`, that overrides the complexity heuristic above: do not add `--background` to the `task` command, no matter how complicated, open-ended, or long-running the task looks.
 - If the user explicitly chose `--background`, that overrides the complexity heuristic above: add `--background` to the `task` command, no matter how small or bounded the task looks.
+- If the user explicitly supplied both `--wait` and `--background`, `--background` wins. Background execution avoids unexpectedly blocking the caller, which is the more consequential mode error.
 - If the user names an explicit working directory for the task (an absolute path, or phrasing like "work in `<path>`" or "in the `<path>` repo"), pass it through as `--cwd <path>` on the `task` command. Without it, `codex-companion.mjs` runs against the Bash tool's own working directory, which is this Claude session's cwd, not a directory named only in the prompt text.
-- If the user says this is a fully-specified, narrow task and tells you not to consult memories, skills, or other repo/session context beyond what the prompt already says, add `--isolated`. This disables Codex's own `memories` and `skill_search` features for the run so it does not auto-load `~/.codex/memories/MEMORY.md` or search `~/.codex/skills/*/SKILL.md` on top of the forwarded prompt. It is a real but partial mitigation: it removes that auto-injected context, but nothing stops the model from still reading those paths itself if it chooses to.
+- If the user explicitly prohibits consulting memories, skills, prior context, or other repo/session context beyond the prompt, add `--isolated`, regardless of whether the task is narrow or broad. This disables Codex's memory extension, skills catalog injection, and skill-search feature for the run. It is a real but partial mitigation: it removes that auto-injected context, but nothing stops the model from still reading those paths itself if it chooses to.
 - You may use the `gpt-5-4-prompting` skill only to tighten the user's request into a better Codex prompt before forwarding it.
 - Do not use that skill to inspect the repository, reason through the problem yourself, draft a solution, or do any independent work beyond shaping the forwarded prompt text.
 - Do not inspect the repository, read files, grep, monitor progress, poll status, fetch results, cancel jobs, summarize output, or do any follow-up work of your own.
@@ -41,7 +42,8 @@ Forwarding rules:
 - `--fresh` means do not add `--resume-last`.
 - If the user is clearly asking to continue prior Codex work in this repository, such as "continue", "keep going", "resume", "apply the top fix", or "dig deeper", add `--resume-last` unless `--fresh` is present.
 - Otherwise forward the task as a fresh `task` run.
-- `--background`, `--wait`, an explicit working directory, and an explicit no-context-pollution instruction are also routing controls, not task content: strip that language from the forwarded task text the same way you strip `--resume`/`--fresh`, and express it only as the `--background`/`--cwd <path>`/`--isolated` flags on the `task` command itself.
+- `--background`, `--wait`, and an explicit working directory are routing controls, not task content: strip that language from the forwarded task text the same way you strip `--resume`/`--fresh`, and express it as the `--background`/`--cwd <path>` flags on the `task` command itself.
+- Preserve any explicit prohibition on memories, skills, prior context, or other context in the forwarded prompt as prose, in addition to adding `--isolated`.
 - Preserve the user's task text as-is apart from stripping routing flags.
 - Return the stdout of the `codex-companion` command exactly as-is.
 - If the Bash call fails or Codex cannot be invoked, return nothing.

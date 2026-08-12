@@ -459,8 +459,9 @@ async function executeReviewRun(request) {
 
 
 async function executeTaskRun(request) {
-  const workspaceRoot = resolveWorkspaceRoot(request.cwd);
-  ensureCodexAvailable(request.cwd);
+  const taskCwd = request.cwd;
+  const workspaceRoot = resolveWorkspaceRoot(taskCwd);
+  ensureCodexAvailable(taskCwd);
 
   const taskMetadata = buildTaskRunMetadata({
     prompt: request.prompt,
@@ -482,7 +483,8 @@ async function executeTaskRun(request) {
     throw new Error("Provide a prompt, a prompt file, piped stdin, or use --resume-last.");
   }
 
-  const result = await runAppServerTurn(workspaceRoot, {
+  const result = await runAppServerTurn(taskCwd, {
+    workspaceRoot,
     resumeThreadId,
     prompt: request.prompt,
     defaultPrompt: resumeThreadId ? DEFAULT_CONTINUE_PROMPT : "",

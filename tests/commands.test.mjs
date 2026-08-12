@@ -170,6 +170,29 @@ test("rescue command absorbs continue semantics", () => {
   assert.match(readme, /### `\/codex:cancel`/);
 });
 
+test("rescue subagent honors execution, cwd, and isolation routing", () => {
+  const rescue = read("commands/rescue.md");
+  const agent = read("agents/codex-rescue.md");
+  const runtimeSkill = read("skills/codex-cli-runtime/SKILL.md");
+
+  assert.match(agent, /If the user explicitly chose `--wait`, that overrides the complexity heuristic above: do not add `--background`/i);
+  assert.match(agent, /If the user explicitly chose `--background`, that overrides the complexity heuristic above: add `--background`/i);
+  assert.match(agent, /both `--wait` and `--background`, `--background` wins/i);
+  assert.match(agent, /pass it through as `--cwd <path>` on the `task` command/i);
+  assert.match(agent, /explicitly prohibits consulting memories, skills, prior context, or other repo\/session context beyond the prompt, add `--isolated`, regardless of whether the task is narrow or broad/i);
+  assert.match(agent, /disables Codex's memory extension, skills catalog injection, and skill-search feature/i);
+  assert.match(agent, /nothing stops the model from still reading those paths itself if it chooses to/i);
+  assert.match(agent, /Preserve any explicit prohibition on memories, skills, prior context, or other context in the forwarded prompt as prose/i);
+
+  assert.match(runtimeSkill, /`--wait` means do not add `--background` to the `task` command/i);
+  assert.match(runtimeSkill, /`--background` means add `--background` to the `task` command/i);
+  assert.match(runtimeSkill, /both `--wait` and `--background` are present, `--background` wins/i);
+  assert.match(runtimeSkill, /pass `--cwd <path>` to `task` instead/i);
+  assert.match(runtimeSkill, /pass `--isolated` to `task` regardless of whether the task is narrow or broad/i);
+  assert.match(runtimeSkill, /Preserve that prohibition in the task text as prose/i);
+  assert.match(rescue, /If the request includes both, `--background` wins/i);
+});
+
 test("transfer, result, and cancel commands are exposed as deterministic runtime entrypoints", () => {
   const transfer = read("commands/transfer.md");
   const result = read("commands/result.md");

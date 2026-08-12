@@ -50,6 +50,16 @@ const DEFAULT_CONTINUE_PROMPT =
   "Continue from the current thread state. Pick the next highest-value step and follow through until the task is resolved.";
 const EXTERNAL_AGENT_IMPORT_COMPLETED = "externalAgentConfig/import/completed";
 const EXTERNAL_AGENT_IMPORT_TIMEOUT_MS = 2 * 60 * 1000;
+// A shared broker's config is fixed at broker-start time, so isolated calls need a dedicated
+// app-server with every automatic context source disabled before the thread starts.
+const ISOLATED_APP_SERVER_ARGS = [
+  "--disable",
+  "memories",
+  "-c",
+  "skills.include_instructions=false",
+  "--disable",
+  "skill_search"
+];
 
 function cleanCodexStderr(stderr) {
   return stderr
@@ -610,10 +620,10 @@ async function captureTurn(client, threadId, startRequest, options = {}) {
   }
 }
 
-async function withAppServer(cwd, fn) {
+async function withAppServer(cwd, fn, options = {}) {
   let client = null;
   try {
-    client = await CodexAppServerClient.connect(cwd);
+    client = await CodexAppServerClient.connect(cwd, { workspaceRoot: options.workspaceRoot });
     const result = await fn(client);
     await client.close();
     return result;
@@ -641,8 +651,8 @@ async function withAppServer(cwd, fn) {
   }
 }
 
-async function withDirectAppServer(cwd, fn) {
-  const client = await CodexAppServerClient.connect(cwd, { disableBroker: true });
+async function withDirectAppServer(cwd, fn, options = {}) {
+  const client = await CodexAppServerClient.connect(cwd, { ...options, disableBroker: true });
   try {
     return await fn(client);
   } finally {
@@ -1098,7 +1108,11 @@ export async function runAppServerTurn(cwd, options = {}) {
     throw new Error("Codex CLI is not installed or is missing required runtime support. Install it with `npm install -g @openai/codex`, then rerun `/codex:setup`.");
   }
 
-  return withAppServer(cwd, async (client) => {
+  const withServer = options.isolated
+    ? (fn) => withDirectAppServer(cwd, fn, { extraArgs: ISOLATED_APP_SERVER_ARGS })
+    : (fn) => withAppServer(cwd, fn, { workspaceRoot: options.workspaceRoot });
+
+  return withServer(async (client) => {
     let threadId;
 
     if (options.resumeThreadId) {

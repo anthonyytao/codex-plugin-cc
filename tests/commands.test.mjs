@@ -170,6 +170,23 @@ test("rescue command absorbs continue semantics", () => {
   assert.match(readme, /### `\/codex:cancel`/);
 });
 
+test("rescue subagent honors an explicit --wait/--background choice and forwards --cwd and --isolated", () => {
+  const agent = read("agents/codex-rescue.md");
+  const runtimeSkill = read("skills/codex-cli-runtime/SKILL.md");
+
+  assert.match(agent, /If the user explicitly chose `--wait`, that overrides the complexity heuristic above: do not add `--background`/i);
+  assert.match(agent, /If the user explicitly chose `--background`, that overrides the complexity heuristic above: add `--background`/i);
+  assert.match(agent, /pass it through as `--cwd <path>` on the `task` command/i);
+  assert.match(agent, /add `--isolated`/i);
+  assert.match(agent, /disables Codex's own `memories` and `skill_search` features/i);
+  assert.match(agent, /nothing stops the model from still reading those paths itself if it chooses to/i);
+
+  assert.match(runtimeSkill, /`--wait` means do not add `--background` to the `task` command/i);
+  assert.match(runtimeSkill, /`--background` means add `--background` to the `task` command/i);
+  assert.match(runtimeSkill, /pass `--cwd <path>` to `task` instead/i);
+  assert.match(runtimeSkill, /pass `--isolated` to `task` instead/i);
+});
+
 test("transfer, result, and cancel commands are exposed as deterministic runtime entrypoints", () => {
   const transfer = read("commands/transfer.md");
   const result = read("commands/result.md");

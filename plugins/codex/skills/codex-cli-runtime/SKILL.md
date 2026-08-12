@@ -26,6 +26,10 @@ Execution rules:
 Command selection:
 - Use exactly one `task` invocation per rescue handoff.
 - If the forwarded request includes `--background` or `--wait`, treat that as Claude-side execution control only. Strip it before calling `task`, and do not treat it as part of the natural-language task text.
+- `--wait` means do not add `--background` to the `task` command, even if the task looks complicated, open-ended, or long-running. This overrides the general "background complicated tasks" heuristic.
+- `--background` means add `--background` to the `task` command, even if the task looks small or bounded. This overrides the general "foreground small tasks" heuristic.
+- If the forwarded request names an explicit working directory (an absolute path, "work in `<path>`", "in the `<path>` repo"), strip that language from the task text and pass `--cwd <path>` to `task` instead. `task` otherwise runs against the Bash tool's own cwd (this Claude session's cwd), not a directory only mentioned in the prompt.
+- If the forwarded request says this is a fully-specified, narrow task and tells you not to consult memories, skills, or other repo/session context, strip that language and pass `--isolated` to `task` instead. This disables Codex's own `memories`/`skill_search` auto-load for the run; it does not stop the model from reading those paths itself if it chooses to.
 - If the forwarded request includes `--model`, normalize `spark` to `gpt-5.3-codex-spark` and pass it through to `task`.
 - If the forwarded request includes `--effort`, pass it through to `task`.
 - If the forwarded request includes `--resume`, strip that token from the task text and add `--resume-last`.

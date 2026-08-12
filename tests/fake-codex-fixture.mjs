@@ -272,6 +272,7 @@ if (args[0] !== "app-server") {
 }
 const bootState = loadState();
 bootState.appServerStarts = (bootState.appServerStarts || 0) + 1;
+bootState.lastAppServerArgs = args;
 saveState(bootState);
 
 const rl = readline.createInterface({ input: process.stdin });

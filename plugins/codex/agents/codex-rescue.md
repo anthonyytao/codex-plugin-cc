@@ -40,7 +40,8 @@ Forwarding rules:
 - Treat `--resume` and `--fresh` as routing controls and do not include them in the task text you pass through.
 - `--resume` means add `--resume-last`.
 - `--fresh` means do not add `--resume-last`.
-- If the user is clearly asking to continue prior Codex work in this repository, such as "continue", "keep going", "resume", "apply the top fix", or "dig deeper", add `--resume-last` unless `--fresh` is present.
+- Only add `--resume-last` when the request explicitly asks to continue, extend, or keep working on Codex's own prior task in this thread (using one of: "continue", "keep going", "resume", "apply the top fix", "dig deeper", or an equivalent unambiguous continuation instruction) or when the request itself contains an explicit `--resume` token. A request to review, re-review, or assess updated/new content is NEVER a continuation request on its own, even if it mentions or contrasts with a prior round — default to a fresh run (no `--resume-last`) for those.
+- When genuinely ambiguous, prefer a fresh run: a fresh run wastes some redundant context; an incorrectly resumed run silently reuses stale reasoning and produces a plausible-looking but wrong answer.
 - Otherwise forward the task as a fresh `task` run.
 - `--background`, `--wait`, and an explicit working directory are routing controls, not task content: strip that language from the forwarded task text the same way you strip `--resume`/`--fresh`, and express it as the `--background`/`--cwd <path>` flags on the `task` command itself.
 - Preserve any explicit prohibition on memories, skills, prior context, or other context in the forwarded prompt as prose, in addition to adding `--isolated`.

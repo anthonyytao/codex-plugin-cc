@@ -31,8 +31,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" task-resume-candidate -
 - The two choices must be:
   - `Continue current Codex thread`
   - `Start a new Codex thread`
-- If the user is clearly giving a follow-up instruction such as "continue", "keep going", "resume", "apply the top fix", or "dig deeper", put `Continue current Codex thread (Recommended)` first.
-- Otherwise put `Start a new Codex thread (Recommended)` first.
+- Put `Continue current Codex thread (Recommended)` first only when the request explicitly asks to continue, extend, or keep working on Codex's own prior task in this thread (using one of: "continue", "keep going", "resume", "apply the top fix", "dig deeper", or an equivalent unambiguous continuation instruction). A request to review, re-review, or assess updated/new content is NEVER a continuation on its own, even if it references or contrasts with a prior round.
+- Otherwise — including any ambiguous case — put `Start a new Codex thread (Recommended)` first.
 - If the user chooses continue, add `--resume` before routing to the subagent.
 - If the user chooses a new thread, add `--fresh` before routing to the subagent.
 - If the helper reports `available: false`, do not ask. Route normally.

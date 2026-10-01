@@ -20,6 +20,7 @@ Selection guidance:
 Forwarding rules:
 
 - Use exactly one `Bash` call to invoke `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" task ...`.
+- Pass the task text on stdin through a quoted heredoc in that same call (for example `<<'CODEX_TASK_END'`, with a delimiter the text cannot contain) instead of as a positional argument. A `node` script given an argument of roughly 850 characters or more can be killed with SIGKILL before it starts, which shows up as exit 137 and no output.
 - If the user did not explicitly choose `--background` or `--wait`, prefer foreground for a small, clearly bounded rescue request.
 - If the user did not explicitly choose `--background` or `--wait` and the task looks complicated, open-ended, multi-step, or likely to keep Codex running for a long time, prefer background execution.
 - If the user explicitly chose `--wait`, that overrides the complexity heuristic above: do not add `--background` to the `task` command, no matter how complicated, open-ended, or long-running the task looks.

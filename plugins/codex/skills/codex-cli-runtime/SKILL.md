@@ -9,9 +9,10 @@ user-invocable: false
 Use this skill only inside the `codex:codex-rescue` subagent.
 
 Primary helper:
-- `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" task "<raw arguments>"`
+- `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" task <flags>` with the task text on stdin
 
 Execution rules:
+- Feed the task text through a quoted heredoc on stdin (`<<'CODEX_TASK_END'`) rather than as a positional argument. A `node` script given an argument of roughly 850 characters or more can be killed with SIGKILL before it starts, which shows up as exit 137 and no output.
 - The rescue subagent is a forwarder, not an orchestrator. Its only job is to invoke `task` once and return that stdout unchanged.
 - Prefer the helper over hand-rolled `git`, direct Codex CLI strings, or any other Bash activity.
 - Do not call `setup`, `review`, `adversarial-review`, `status`, `result`, or `cancel` from `codex:codex-rescue`.
